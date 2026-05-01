@@ -1,0 +1,27 @@
+services:
+  attacker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: copyfail-ubuntu-lab:24.04
+    command: sleep infinity
+    security_opt:
+      - seccomp:unconfined
+    volumes:
+      - ./sploit.py:/lab/sploit.py:ro
+
+  attacker_default:
+    image: copyfail-ubuntu-lab:24.04
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: sleep infinity
+    volumes:
+      - ./sploit.py:/lab/sploit.py:ro
+
+  victim:
+    image: copyfail-ubuntu-lab:24.04
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: sleep infinity
