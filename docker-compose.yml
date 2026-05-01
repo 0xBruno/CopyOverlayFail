@@ -9,6 +9,7 @@ services:
       - seccomp:unconfined
     volumes:
       - ./sploit.py:/lab/sploit.py:ro
+      - ./payload.elf:/lab/payload.elf:ro
 
   victim:
     build:
