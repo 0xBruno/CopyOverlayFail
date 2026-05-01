@@ -55,7 +55,7 @@ def build_payload(message=b"PWND\n"):
 
 def main():
     parser = argparse.ArgumentParser(description="Build a tiny x86-64 ELF that prints PWND.")
-    parser.add_argument("output", nargs="?", default="payload_pwnd.elf")
+    parser.add_argument("output", nargs="?", default="payload.elf")
     args = parser.parse_args()
 
     payload = build_payload()

