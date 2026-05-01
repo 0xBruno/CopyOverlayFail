@@ -19,6 +19,27 @@ attacker: http://127.0.0.1:8888/?token=attacker
 victim:   http://127.0.0.1:9999/?token=victim
 ```
 
+First prove these are separate user workspaces.
+
+In the attacker notebook, run:
+
+```python
+open("/home/jovyan/attacker-only.txt", "w").write("attacker\n")
+```
+
+In the victim notebook, run:
+
+```python
+import os
+os.path.exists("/home/jovyan/attacker-only.txt")
+```
+
+Expected:
+
+```python
+False
+```
+
 In the victim notebook, open a Terminal and baseline `pip`:
 
 ```bash
@@ -57,7 +78,7 @@ That final command represents a future notebook action that execs a shared image
 ## Cleanup
 
 ```bash
-docker compose down --remove-orphans
+docker compose down -v --remove-orphans
 sudo sync
 sudo sh -c 'echo 3 > /proc/sys/vm/drop_caches'
 ```

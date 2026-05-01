@@ -12,6 +12,8 @@ services:
     user: root
     ports:
       - "8888:8888"
+    volumes:
+      - attacker-home:/home/jovyan
 
   victim:
     image: quay.io/jupyter/base-notebook:latest
@@ -24,3 +26,9 @@ services:
     user: root
     ports:
       - "9999:8888"
+    volumes:
+      - victim-home:/home/jovyan
+
+volumes:
+  attacker-home:
+  victim-home:
