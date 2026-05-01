@@ -7,7 +7,7 @@ This repository does not claim a new vulnerability. It reuses the original CopyF
 Labs:
 
 - `containers-lab/`: two Ubuntu containers sharing the same image-layer executable.
-- `notebook-lab/`: two Jupyter notebook-image containers sharing `/opt/conda/bin/python`.
+- `notebook-lab/`: two Jupyter notebook-image containers sharing `/opt/conda/bin/pip`.
 
 Shared tooling:
 

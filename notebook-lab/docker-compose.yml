@@ -12,8 +12,6 @@ services:
     user: root
     ports:
       - "8888:8888"
-    volumes:
-      - ../sploit.py:/lab/sploit.py:ro
 
   victim:
     image: quay.io/jupyter/base-notebook:latest
