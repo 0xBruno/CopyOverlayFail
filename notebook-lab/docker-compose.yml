@@ -1,15 +1,28 @@
 services:
   attacker:
     image: quay.io/jupyter/base-notebook:latest
-    command: sleep infinity
+    command: >
+      start-notebook.py
+      --ServerApp.ip=0.0.0.0
+      --ServerApp.token=attacker
+      --ServerApp.password=''
+      --ServerApp.allow_root=True
     security_opt:
       - seccomp:unconfined
     user: root
+    ports:
+      - "8888:8888"
     volumes:
       - ../sploit.py:/lab/sploit.py:ro
-      - ../payload.elf:/lab/payload.elf:ro
 
   victim:
     image: quay.io/jupyter/base-notebook:latest
-    command: sleep infinity
+    command: >
+      start-notebook.py
+      --ServerApp.ip=0.0.0.0
+      --ServerApp.token=victim
+      --ServerApp.password=''
+      --ServerApp.allow_root=True
     user: root
+    ports:
+      - "9999:8888"

